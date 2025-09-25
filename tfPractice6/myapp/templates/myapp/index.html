@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ko" data-bs-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <title>CIFAR-100 분류 데모</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- axios -->
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <style>
+    .preview { max-width: 100%; border-radius: .5rem; }
+  </style>
+</head>
+<body class="bg-light py-5">
+<div class="container">
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h1 class="h4 mb-3">이미지 분류 (MobileNetV2 Fine-tuning)</h1>
+
+          <div class="mb-3">
+            <label class="form-label">이미지 선택</label>
+            <input class="form-control" type="file" id="file" accept="image/*">
+          </div>
+
+          <div class="mb-3 text-center">
+            <img id="preview" class="preview d-none" alt="preview"/>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button id="send" class="btn btn-primary">분류 요청</button>
+            <span id="status" class="badge text-bg-secondary align-self-center d-none">대기중</span>
+          </div>
+
+          <hr class="my-4" />
+
+          <div id="resultWrap" class="d-none">
+            <div class="alert alert-info mb-2">
+              <strong>Top-1:</strong> <span id="result"></span>
+            </div>
+            <ul id="top5" class="list-group"></ul>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const fileInput = document.getElementById("file");
+const preview = document.getElementById("preview");
+const sendBtn  = document.getElementById("send");
+const resultEl = document.getElementById("result");
+const top5El   = document.getElementById("top5");
+const statusEl = document.getElementById("status");
+const resultWrap = document.getElementById("resultWrap");
+
+let currentFile = null;
+
+fileInput.addEventListener("change", (e) => {
+  const f = e.target.files[0];
+  currentFile = f || null;
+  if (!f) { preview.src = ""; preview.classList.add("d-none"); return; }
+  const url = URL.createObjectURL(f);
+  preview.src = url;
+  preview.classList.remove("d-none");
+});
+
+sendBtn.addEventListener("click", async () => {
+  if (!currentFile) { alert("이미지를 선택하세요"); return; }
+
+  const fd = new FormData();
+  fd.append("image", currentFile);
+
+  statusEl.textContent = "분류 중…";
+  statusEl.classList.remove("d-none");
+  resultWrap.classList.add("d-none");
+  top5El.innerHTML = "";
+  resultEl.textContent = "";
+
+  try {
+    const res = await axios.post("/api/predict/", fd, {
+      headers: { "Content-Type": "multipart/form-data" }
+    });
+    statusEl.textContent = "완료";
+    resultEl.textContent = res.data.result || "(없음)";
+    if (res.data.top5) {
+      res.data.top5.forEach((item, i) => {
+        const li = document.createElement("li");
+        li.className = "list-group-item d-flex justify-content-between align-items-center";
+        li.innerHTML = `<span>${i+1}. ${item.label}</span>
+                        <span class="badge text-bg-secondary">${(item.prob*100).toFixed(2)}%</span>`;
+        top5El.appendChild(li);
+      });
+    }
+    resultWrap.classList.remove("d-none");
+  } catch (err) {
+    statusEl.textContent = "오류";
+    console.error(err);
+    alert("분류 중 오류가 발생했습니다.");
+  }
+});
+</script>
+
+<!-- Bootstrap JS (선택) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
